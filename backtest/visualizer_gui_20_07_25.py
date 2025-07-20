@@ -10,7 +10,7 @@ GUI интерфейс для визуализации криптовалютн�
 Автор: Crypto Trading System
 Дата: 2025
 """
-# [1] Импорты 
+
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 from tkinter import font as tkfont
@@ -25,13 +25,7 @@ try:
     from visualizer import CandlestickVisualizer
 except ImportError:
     print("Ошибка: Модуль visualizer.py не найден!")
-    # Создаем заглушку для тестирования GUI
-    class CandlestickVisualizer:
-        def __init__(self):
-            self.data_path = "data"
-        
-        def visualize(self, **kwargs):
-            pass
+    exit(1)
 
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
@@ -270,73 +264,58 @@ class VisualizationGUI:
         thread.daemon = True
         thread.start()
 
-    def _create_visualization_thread(self):
-        """Выполнение визуализации в отдельном потоке."""
-        try:
+        def _create_visualization_thread(self):
             symbol = self.symbol_var.get()
-            timeframe = self.timeframe_var.get()
-            
-            # Получаем даты
-            if self.use_date_range_var.get():
-                start_date = self.start_date_entry.get()
-                end_date = self.end_date_entry.get()
-            else:
-                days_back = self.days_back_var.get()
-                end_date = datetime.now().strftime("%Y-%m-%d")
-                start_date = (datetime.now() - timedelta(days=days_back)).strftime("%Y-%m-%d")
+            timeframes = [tf for tf,
+                          var in self.timeframe_vars.items() if var.get()]
+            indicators = [ind for ind,
+                          var in self.indicator_vars.items() if var.get()]
+            start = self.start_date.get()
+            end = self.end_date.get()
 
-            # Проверка обязательных параметров
-            if not symbol:
-                self.log_message("⛔ Укажите символ")
-                return
+        if not symbol:
+            self.log_message("⛔ Укажите символ")
+        return
+        if not timeframes:
+            self.log_message("⛔ Выберите хотя бы один таймфрейм")
+            return
+        if not indicators:
+            self.log_message("⛔ Выберите хотя бы один индикатор")
+            return
 
-            self.log_message(f"🟡 Визуализация: {symbol}, TF={timeframe}, Период: {start_date} - {end_date}")
-            
-            # Обновляем прогресс
-            self.progress_var.set(25)
-            
-            # Вызываем визуализатор
+        self.log_message(
+            f"🟡 Визуализация: {symbol}, TF={timeframes}, Индикаторы={indicators}")
+
+        try:
             self.visualizer.visualize(
                 symbol=symbol,
-                timeframe=timeframe,
-                start_date=datetime.strptime(start_date, "%Y-%m-%d") if isinstance(start_date, str) else start_date,
-                end_date=datetime.strptime(end_date, "%Y-%m-%d") if isinstance(end_date, str) else end_date,
-                save_to_file=self.save_file_var.get(),
-                show_plot=self.show_plot_var.get()
+                timeframes=timeframes,
+                indicators=indicators,
+                start_date=start if start else None,
+                end_date=end if end else None,
             )
-            
-            self.progress_var.set(100)
             self.log_message("✅ Графики успешно созданы!")
-
         except Exception as e:
             self.log_message(f"❌ Ошибка при построении графика: {str(e)}")
-            logger.exception("Ошибка в визуализации")
-        finally:
-            # Разблокируем кнопку
-            self.create_button.config(state='normal')
-            self.progress_var.set(0)
 
     def open_plots_folder(self):
-        """Открытие папки с графиками."""
-        import pathlib
-        folder = pathlib.Path("visuals")
-        
+        folder = Path("visuals")
         if not folder.exists():
             self.log_message("⛔ Папка с графиками не найдена")
             return
-        
         try:
-            # Кроссплатформенное открытие папки
-            if os.name == 'nt':  # Windows
-                os.startfile(folder.resolve())
-            elif os.name == 'posix':  # macOS/Linux
-                os.system(f'open "{folder.resolve()}"' if os.uname().sysname == 'Darwin' 
-                         else f'xdg-open "{folder.resolve()}"')
+            os.startfile(folder.resolve())
         except Exception as e:
             self.log_message(f"❌ Ошибка при открытии папки: {str(e)}")
+
+    def log_message(self, message):
+        self.log.config(state="normal")
+        self.log.insert(tk.END, message + "\n")
+        self.log.config(state="disabled")
+        self.log.see(tk.END)
 
 
 if __name__ == "__main__":
     root = tk.Tk()
-    app = VisualizationGUI(root)
+    app = VisualizerGUI(root)
     root.mainloop()

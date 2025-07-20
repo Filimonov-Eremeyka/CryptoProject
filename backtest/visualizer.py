@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 class CandlestickVisualizer:
     """Класс для визуализации свечных графиков криптовалютных пар."""
     
-    def __init__(self, data_path: str = "data/history/", output_path: str = "backtest/plots/"):
+    def __init__(self, data_path: str = "backtest/data/history/", output_path: str = "backtest/plots/"):
         """
         Инициализация визуализатора.
         
