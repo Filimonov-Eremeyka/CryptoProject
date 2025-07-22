@@ -1,106 +1,80 @@
+# SECTION 0: Импорт
 import pandas as pd
-import os
 from pathlib import Path
 
-def csv_to_parquet(csv_path):
+# SECTION 1: Конвертация CSV → Parquet
+def csv_to_parquet(csv_path: str) -> str:
     """
-    Конвертирует CSV файл в Parquet формат.
-    
+    Конвертирует CSV-файл в Parquet.
+
     Args:
-        csv_path (str): Путь к CSV файлу
-    
+        csv_path (str): путь к исходному CSV.
+
     Returns:
-        str: Путь к созданному Parquet файлу
+        str: путь к созданному Parquet-файлу.
     """
-    # Читаем CSV
     df = pd.read_csv(csv_path)
-    
-    # Создаем путь для parquet файла
-    parquet_path = csv_path.replace('.csv', '.parquet')
-    
-    # Сохраняем в parquet
+    parquet_path = str(Path(csv_path).with_suffix('.parquet'))
     df.to_parquet(parquet_path, index=False)
-    
-    print(f"Конвертирован: {csv_path} -> {parquet_path}")
+    print(f"Конвертирован: {csv_path} → {parquet_path}")
     return parquet_path
 
-def resample(symbol, tf):
+
+# SECTION 2: Ресэмплинг 1m → старшие таймфреймы
+def resample(symbol: str, tf: str) -> str:
     """
-    Ресэмплирует данные 1m в указанный таймфрейм.
-    
+    Ресэмплирует 1-минутный Parquet в заданный таймфрейм.
+
     Args:
-        symbol (str): Символ (например, 'SOLUSDTUSDT')
-        tf (str): Таймфрейм ('5m', '15m', '1h')
-    
+        symbol (str): символ, например 'SOLUSDTUSDT'.
+        tf (str): целевой таймфрейм ('5m', '15m', '30m', '1h', '4h', '1d').
+
     Returns:
-        str: Путь к созданному файлу
+        str: путь к созданному Parquet-файлу.
     """
-    # Путь к исходному файлу 1m
-    base_path = Path("backtest/data/history")
-    input_path = base_path / f"{symbol}_1m.parquet"
-    
-    if not input_path.exists():
-        raise FileNotFoundError(f"Файл {input_path} не найден")
-    
-    # Читаем данные
-    df = pd.read_parquet(input_path)
-    
-    # ИСПРАВЛЕНИЕ: Правильно обрабатываем timestamp
-    if 'timestamp' in df.columns:
-        # Если timestamp в миллисекундах, конвертируем в datetime
-        df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms")
-        df.set_index("timestamp", inplace=True)
-    else:
-        # Если первая колонка - timestamp (альтернативный случай)
-        timestamp_col = df.columns[0]
-        df[timestamp_col] = pd.to_datetime(df[timestamp_col])
-        df.set_index(timestamp_col, inplace=True)
-    
-    # Мапинг таймфреймов для pandas
-    tf_mapping = {
+    # путь к исходному 1-минутному файлу
+    base_path = Path("data/history")
+    src = base_path / f"{symbol}_1m.parquet"
+    if not src.exists():
+        raise FileNotFoundError(src)
+
+    df = pd.read_parquet(src)
+
+    # убеждаемся, что индекс — datetime
+    if 'open_time' in df.columns:
+        df['open_time'] = pd.to_datetime(df['open_time'])
+        df = df.set_index('open_time')
+
+    # словарь таймфреймов
+    tf_map = {
         '5m': '5T',
-        '15m': '15T', 
-        '1h': '1H'
+        '15m': '15T',
+        '30m': '30T',
+        '1h': '1H',
+        '4h': '4H',
+        '1d': '1D',
     }
-    
-    if tf not in tf_mapping:
+    if tf not in tf_map:
         raise ValueError(f"Неподдерживаемый таймфрейм: {tf}")
-    
-    # Ресэмплинг OHLCV данных
-    ohlc_agg = {
+
+    # правила агрегации OHLCV
+    agg = {
         'open': 'first',
         'high': 'max',
         'low': 'min',
         'close': 'last',
-        'volume': 'sum'
+        'volume': 'sum',
     }
-    
-    # Находим колонки для агрегации
-    agg_dict = {}
-    for col in df.columns:
-        col_lower = col.lower()
-        if 'open' in col_lower:
-            agg_dict[col] = 'first'
-        elif 'high' in col_lower:
-            agg_dict[col] = 'max'
-        elif 'low' in col_lower:
-            agg_dict[col] = 'min'
-        elif 'close' in col_lower:
-            agg_dict[col] = 'last'
-        elif 'volume' in col_lower:
-            agg_dict[col] = 'sum'
-        else:
-            agg_dict[col] = 'last'  # для остальных колонок
-    
-    # Выполняем ресэмплинг
-    resampled_df = df.resample(tf_mapping[tf]).agg(agg_dict)
-    
-    # Убираем NaN строки
-    resampled_df = resampled_df.dropna()
-    
-    # Сохраняем результат
-    output_path = base_path / f"{symbol}_{tf}.parquet"
-    resampled_df.reset_index().to_parquet(output_path, index=False)
-    
-    print(f"Создан файл: {output_path}")
-    return str(output_path)
+
+    resampled = (
+        df[list(agg.keys())]
+        .resample(tf_map[tf])
+        .agg(agg)
+        .dropna()
+        .reset_index()
+    )
+
+    dst = base_path / f"{symbol}_{tf}.parquet"
+    resampled.to_parquet(dst, index=False)
+    print(f"Создан файл: {dst}")
+    return str(dst)
