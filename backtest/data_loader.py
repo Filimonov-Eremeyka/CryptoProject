@@ -78,16 +78,11 @@ def fetch_ohlcv(
             "low",
             "close",
             "volume",
-            "close_time",
-            "quote_volume",
-            "trades",
-            "taker_base",
-            "taker_quote",
-            "ignore",
         ],
     )
     df["open_time"] = pd.to_datetime(df["open_time"], unit="ms")
-    df = df[df["open_time"] < until]  # обрезаем лишнее
+    until_naive = until.replace(tzinfo=None)
+    df = df[df["open_time"] < until_naive]
     return df
 # SECTION 3: Сохранение
 def save(df: pd.DataFrame, symbol: str, timeframe: str, since: datetime, until: datetime):
