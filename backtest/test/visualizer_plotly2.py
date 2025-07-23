@@ -64,7 +64,7 @@ class VisualizerGUI(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("Plotly Chart Viewer")
-        self.geometry("500x520")  # увеличено для новых опций
+        self.geometry("450x400")
 
         # выбор каталога
         self.dir_var = tk.StringVar(value="data/history")
@@ -82,12 +82,14 @@ class VisualizerGUI(tk.Tk):
         self.file_combo.bind("<<ComboboxSelected>>", self.on_file_select)
 
         # даты
-        ttk.Label(self, text="Start").pack(); 
         self.start_date = DateEntry(self, date_pattern="yyyy-mm-dd")
-        self.start_date.pack()
-        ttk.Label(self, text="End").pack();   
-        self.end_date = DateEntry(self, date_pattern="yyyy-mm-dd")
-        self.end_date.pack()
+        self.end_date   = DateEntry(self, date_pattern="yyyy-mm-dd")
+        ttk.Label(self, text="Start").pack(); self.start_date.pack()
+        ttk.Label(self, text="End").pack();   self.end_date.pack()
+
+        # новые опции для интерактивности
+        self.options_frame = ttk.LabelFrame(self, text="Chart Options", padding=10)
+        self.options_frame.pack(pady=10, padx=10, fill="x")
 
         # ---------- блок настроек PolusX ----------
         polus_frame = ttk.LabelFrame(self, text="PolusX Indicator", padding=10)
@@ -103,10 +105,6 @@ class VisualizerGUI(tk.Tk):
         ttk.Checkbutton(polus_frame, text="IND3 (up/dn/anvar)", variable=self.polus_ind3).pack(anchor="w")
         ttk.Checkbutton(polus_frame, text="Show helper lines", variable=self.polus_lines).pack(anchor="w")
         
-        # новые опции для интерактивности
-        self.options_frame = ttk.LabelFrame(self, text="Chart Options", padding=10)
-        self.options_frame.pack(pady=10, padx=10, fill="x")
-
         # режим перетаскивания
         self.dragmode_var = tk.StringVar(value="pan")
         ttk.Label(self.options_frame, text="Default mode:").pack(anchor="w")
@@ -119,39 +117,11 @@ class VisualizerGUI(tk.Tk):
         # дополнительные опции
         self.scroll_zoom_var = tk.BooleanVar(value=True)
         self.crossfilter_var = tk.BooleanVar(value=False)
-        self.auto_scale_var = tk.BooleanVar(value=True)
+        self.auto_scale_var = tk.BooleanVar(value=True)  # новая опция!
         
         ttk.Checkbutton(self.options_frame, text="Enable scroll zoom", variable=self.scroll_zoom_var).pack(anchor="w")
         ttk.Checkbutton(self.options_frame, text="Crossfilter enabled", variable=self.crossfilter_var).pack(anchor="w")
         ttk.Checkbutton(self.options_frame, text="Auto-scale Y axis (растягивание)", variable=self.auto_scale_var).pack(anchor="w")
-
-        # ---------- НОВЫЕ ОПЦИИ для hover ----------
-        hover_frame = ttk.LabelFrame(self, text="Hover Options", padding=10)
-        hover_frame.pack(pady=5, padx=10, fill="x")
-        
-        self.hover_mode_var = tk.StringVar(value="x unified")
-        ttk.Label(hover_frame, text="Hover mode:").pack(anchor="w")
-        hover_mode_frame = ttk.Frame(hover_frame)
-        hover_mode_frame.pack(anchor="w")
-        
-        ttk.Radiobutton(hover_mode_frame, text="Closest", variable=self.hover_mode_var, value="closest").pack(side=tk.LEFT)
-        ttk.Radiobutton(hover_mode_frame, text="X unified", variable=self.hover_mode_var, value="x unified").pack(side=tk.LEFT)
-        ttk.Radiobutton(hover_mode_frame, text="X", variable=self.hover_mode_var, value="x").pack(side=tk.LEFT)
-        ttk.Radiobutton(hover_mode_frame, text="False", variable=self.hover_mode_var, value="False").pack(side=tk.LEFT)
-        
-        self.spike_snap_var = tk.StringVar(value="cursor")
-        ttk.Label(hover_frame, text="Spike snap:").pack(anchor="w")
-        spike_frame = ttk.Frame(hover_frame)
-        spike_frame.pack(anchor="w")
-        
-        ttk.Radiobutton(spike_frame, text="Cursor", variable=self.spike_snap_var, value="cursor").pack(side=tk.LEFT)
-        ttk.Radiobutton(spike_frame, text="Data", variable=self.spike_snap_var, value="data").pack(side=tk.LEFT)
-        
-        self.show_spikes_var = tk.BooleanVar(value=True)
-        self.detached_hover_var = tk.BooleanVar(value=False)
-        
-        ttk.Checkbutton(hover_frame, text="Show spike lines", variable=self.show_spikes_var).pack(anchor="w")
-        ttk.Checkbutton(hover_frame, text="Detached hover labels", variable=self.detached_hover_var).pack(anchor="w")
 
         # кнопки
         button_frame = ttk.Frame(self)
@@ -203,11 +173,7 @@ class VisualizerGUI(tk.Tk):
             row_heights=[0.7, 0.3]
         )
         
-        # оптимизация: предрасчет цветов для объемов
-        volume_colors = ['#ff4444' if close < open else '#00ff88' 
-                        for close, open in zip(df["close"], df["open"])]
-        
-        # основной график - свечи с оптимизированными настройками
+        # основной график - свечи
         fig.add_trace(
             go.Candlestick(
                 x=df["open_time"],
@@ -217,124 +183,65 @@ class VisualizerGUI(tk.Tk):
                 close=df["close"],
                 name="OHLC",
                 increasing_line_color='#00ff88',
-                decreasing_line_color='#ff4444',
-                # оптимизация hover для свечей
-                hovertemplate='<b>%{x}</b><br>' +
-                             'Open: %{open}<br>' +
-                             'High: %{high}<br>' +
-                             'Low: %{low}<br>' +
-                             'Close: %{close}<br>' +
-                             '<extra></extra>',  # убираем название trace из hover
-                hoverlabel=dict(
-                    bgcolor="rgba(40, 40, 40, 0.9)",
-                    bordercolor="white",
-                    font=dict(color="white", size=12)
-                ) if not self.detached_hover_var.get() else None
+                decreasing_line_color='#ff4444'
             ),
             row=1, col=1
         )
         
-        # объемы с оптимизированными настройками
+        # объемы
+        colors = ['#ff4444' if close < open else '#00ff88' for close, open in zip(df["close"], df["open"])]
         fig.add_trace(
             go.Bar(
                 x=df["open_time"], 
                 y=df["volume"],
                 name="Volume", 
-                marker_color=volume_colors,
-                opacity=0.6,
-                hovertemplate='<b>%{x}</b><br>Volume: %{y:,.0f}<extra></extra>',
-                hoverlabel=dict(
-                    bgcolor="rgba(40, 40, 40, 0.9)",
-                    bordercolor="white",
-                    font=dict(color="white", size=12)
-                ) if not self.detached_hover_var.get() else None
+                marker_color=colors,
+                opacity=0.6
             ),
             row=2, col=1
         )
         
         # --- добавляем PolusX ---
-        try:
-            from indicators.polus_x import PolusX
-            polus = PolusX(
-                use_tick_volume=False,
-                show_lines=self.polus_lines.get(),
-                ind1=self.polus_ind1.get(),
-                ind2=self.polus_ind2.get(),
-                ind3=self.polus_ind3.get()
-            )
-            polus.add_to_figure(df, fig, row=1, col=1)
-        except ImportError:
-            log.warning("Модуль indicators.polus_x не найден, пропускаем индикатор")
+        from indicators.polus_x import PolusX
+        polus = PolusX(
+            use_tick_volume=False,                       # всегда реальный объём
+            show_lines=self.polus_lines.get(),
+            ind1=self.polus_ind1.get(),
+            ind2=self.polus_ind2.get(),
+            ind3=self.polus_ind3.get()
+        )
+        polus.add_to_figure(df, fig, row=1, col=1)
 
-        # ИСПРАВЛЕННАЯ настройка layout
-        hover_mode = self.hover_mode_var.get()
-        if hover_mode == "False":
-            hover_mode = False
-            
-        layout_config = {
-            'hovermode': hover_mode,
-            'dragmode': self.dragmode_var.get(),
-            'template': 'plotly_dark',  # темная тема для лучшего вида
-            'margin': dict(l=50, r=50, t=50, b=50),
-            'font': dict(size=10),
-            # ИСПРАВЛЕНА настройка hoverlabel на уровне layout
-            'hoverlabel': dict(
-                bgcolor="rgba(40, 40, 40, 0.9)",
-                bordercolor="white",
-                font=dict(color="white", size=12),
-                align="left"
-            ) if not self.detached_hover_var.get() else dict(
-                bgcolor="rgba(40, 40, 40, 0.9)",
-                bordercolor="white", 
-                font=dict(color="white", size=12),
-                align="left",
-                # для отвязанных hover labels
-                namelength=-1
-            )
-        }
+        # настройка осей и интерактивности
+        fig.update_layout(
+            title=self.file_var.get(),
+            xaxis_rangeslider_visible=False,
+            dragmode=self.dragmode_var.get(),
+            hovermode='x unified',
+            template='plotly_dark',
+            margin=dict(l=50, r=50, t=50, b=50)
+        )
         
-        fig.update_layout(**layout_config)
-        
-        # настройка спайков (линий при hover)
-        spike_config = {}
-        if self.show_spikes_var.get():
-            spike_config = {
-                'showspikes': True,
-                'spikecolor': "gray",
-                'spikesnap': self.spike_snap_var.get(),
-                'spikemode': "across+toaxis",
-                'spikethickness': 1,
-                'spikedash': "dot"
-            }
-        else:
-            spike_config = {'showspikes': False}
-        
-        # применяем настройки спайков к осям
+        # КЛЮЧЕВЫЕ НАСТРОЙКИ для растягивания масштаба:
         fig.update_xaxes(
-            **spike_config,
             fixedrange=False,
-            autorange=True if self.auto_scale_var.get() else False,
-            rangeslider_visible=False,  # убираем слайдер внизу для экономии места
-            type='date'  # явно указываем тип для оптимизации
+            autorange=True if self.auto_scale_var.get() else False
         )
         
         if self.auto_scale_var.get():
-            # ИСПРАВЛЕНА настройка Y для автоматического растягивания
+            # Для автоматического растягивания Y при зуме X
             fig.update_yaxes(
-                **spike_config,
                 fixedrange=False, 
                 autorange=True,
-                scaleanchor=None,
-                scaleratio=None,
-                automargin=True,
-                tickformat='.2f'  # формат чисел на оси Y
+                scaleanchor=None,  # не привязывать к другим осям
+                scaleratio=None,   # свободное соотношение
+                automargin=True    # автоотступы
             )
         else:
+            # Фиксированный диапазон Y
             fig.update_yaxes(
-                **spike_config,
                 fixedrange=False,
-                autorange=False,
-                tickformat='.2f'
+                autorange=False
             )
         
         # синхронизация осей X между подграфиками
@@ -347,23 +254,19 @@ class VisualizerGUI(tk.Tk):
         """Возвращает конфигурацию для Plotly"""
         config = {
             'displaylogo': False,
-            'modeBarButtonsToRemove': ['lasso2d', 'select2d'] if not self.crossfilter_var.get() else ['lasso2d'],
-            'scrollZoom': self.scroll_zoom_var.get(),
-            'doubleClick': 'autosize',
-            'showAxisDragHandles': True,
-            'showAxisRangeEntryBoxes': True,
-            'responsive': True,
-            'editable': True,
-            # добавляем кнопки для hover management
-            'modeBarButtonsToAdd': [
-                'hoverclosest',
-                'hovercompare' 
-            ] if self.hover_mode_var.get() != "False" else [],
+            'modeBarButtonsToRemove': ['lasso2d'],
+            'scrollZoom': self.scroll_zoom_var.get(),  # зум колесиком мыши
+            'doubleClick': 'autosize',  # двойной клик = автомасштаб
+            'showAxisDragHandles': True,  # ручки для перетаскивания осей
+            'showAxisRangeEntryBoxes': True,  # поля ввода диапазона
+            # КЛЮЧЕВАЯ настройка для растягивания:
+            'responsive': True,  # адаптивный размер
+            'editable': True,    # возможность редактировать
             'toImageButtonOptions': {
                 'format': 'png',
                 'filename': f'chart_{self.file_var.get()}_{datetime.now().strftime("%Y%m%d_%H%M%S")}',
                 'height': 800,
-                'width': 1400,  # увеличена ширина
+                'width': 1200,
                 'scale': 2
             }
         }
@@ -379,26 +282,28 @@ class VisualizerGUI(tk.Tk):
         try:
             df = load_parquet(file_path)
             
-            # оптимизация: фильтрация по датам с использованием query
+            # фильтрация по датам
             start_date = pd.to_datetime(self.start_date.get_date())
             end_date = pd.to_datetime(self.end_date.get_date()) + pd.Timedelta(days=1)
             
-            # используем query для более быстрой фильтрации
-            df_filtered = df.query('open_time >= @start_date and open_time < @end_date')
+            mask = (df["open_time"] >= start_date) & (df["open_time"] < end_date)
+            df = df.loc[mask]
 
-            if df_filtered.empty:
+            if df.empty:
                 log.warning("После фильтрации данных нет")
                 messagebox.showwarning("No data", "Выбранный диапазон пуст.")
                 return
 
-            log.info("Строю график из %d баров в режиме %s", len(df_filtered), self.dragmode_var.get())
+            log.info("Строю график из %d баров в режиме %s", len(df), self.dragmode_var.get())
 
-            fig = self.create_figure(df_filtered)
+            fig = self.create_figure(df)
             config = self.get_config()
             
             if browser:
+                # показать в браузере с полным функционалом
                 fig.show(config=config, renderer='browser')
             else:
+                # показать в дефолтном рендерере
                 fig.show(config=config)
 
         except Exception as e:
@@ -407,9 +312,4 @@ class VisualizerGUI(tk.Tk):
 
 
 if __name__ == "__main__":
-    try:
-        app = VisualizerGUI()
-        app.mainloop()
-    except Exception as e:
-        log.exception("Критическая ошибка: %s", e)
-        messagebox.showerror("Critical Error", f"Приложение не может запуститься: {e}")
+    VisualizerGUI().mainloop()
